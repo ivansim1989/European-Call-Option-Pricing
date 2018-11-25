@@ -1,38 +1,16 @@
 import math
 import numpy as np
+from scipy.stats import norm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 mpl.rcParams['font.family'] = 'serif'
-from scipy.integrate import quad
-
-#
-# Helper Functions
-#
-
-
-def dN(x):
-    ''' Probability density function of standard normal random variable x. '''
-    return np.exp(-0.5 * x ** 2) / np.sqrt(2 * math.pi)
-
-
-def N(d):
-    ''' Cumulative density function of standard normal random variable x. '''
-    return quad(lambda x: dN(x), -20, d, limit=50)[0]
-
-
-def d1f(St, K, t, T, r, sigma):
-    ''' Black-Scholes-Merton d1 function.
-        Parameters see e.g. BSM_call_value function. '''
-    d1 = (np.log(St / K) + (r + 0.5 * sigma ** 2)
-            * (T - t)) / (sigma * np.sqrt(T - t))
-    return d1
 
 #
 # Valuation Functions
 #
 
 
-def BSM_call_value(St, K, t, T, r, sigma):
+def BSM_call_value(St, K, T, r, sigma):
     ''' Calculates Black-Scholes-Merton European call option value.
     Parameters
     ==========
@@ -40,10 +18,8 @@ def BSM_call_value(St, K, t, T, r, sigma):
         stock/index level at time t
     K : float
         strike price
-    t : float
-        valuation date
     T : float
-        date of maturity/time-to-maturity if t = 0; T > t
+        date of maturity/time-to-maturity
     r : float
         constant, risk-less short rate
     sigma : float
@@ -53,13 +29,22 @@ def BSM_call_value(St, K, t, T, r, sigma):
     call_value : float
         European call present value at t
     '''
-    d1 = d1f(St, K, t, T, r, sigma)
-    d2 = d1 - sigma * np.sqrt(T - t)
-    call_value = St * N(d1) - np.exp(-r * (T - t)) * K * N(d2)
+    N = norm.cdf                    # Cumulative density function of standard normal random variable x.
+    disc = np.exp(-r*T)             # Discounting
+    vol = sigma*np.sqrt(T)          # Time-scaled volatility
+
+    # calculate price analytically using Black-Scholes
+    d1 = ((np.log(St/K)+(r+0.5*sigma**2)*T))/vol
+    d2 = d1-vol
+    call_value = St*N(d1)-disc*K*N(d2)
+    
     return call_value
+    # N(d1) is the present value of receiving the stock if and only if the option finishes in the money, and the discounted exercise payment times.
+    # N(d2) is the present value of paying the exercise price in that event.
+    
 
 
-def BSM_put_value(St, K, t, T, r, sigma):
+def BSM_put_value(St, K, T, r, sigma):
     ''' Calculates Black-Scholes-Merton European put option value.
     Parameters
     ==========
@@ -67,10 +52,8 @@ def BSM_put_value(St, K, t, T, r, sigma):
         stock/index level at time t
     K : float
         strike price
-    t : float
-        valuation date
     T : float
-        date of maturity/time-to-maturity if t = 0; T > t
+        date of maturity/time-to-maturity
     r : float
         constant, risk-less short rate
     sigma : float
@@ -80,11 +63,8 @@ def BSM_put_value(St, K, t, T, r, sigma):
     put_value : float
         European put present value at t
     '''
-    put_value = BSM_call_value(St, K, t, T, r, sigma) \
-           - St + np.exp(-r * (T - t)) * K
+    put_value = disc*K*N(-d2)-St*N(-d1)
     return put_value
-
-
 
 
 #
@@ -109,7 +89,7 @@ def plot_values(function):
     # C(K) plot
     plt.subplot(221)
     klist = np.linspace(80, 120, points)
-    vlist = [function(St, K, t, T, r, sigma) for K in klist]
+    vlist = [function(St, K, T, r, sigma) for K in klist]
     plt.plot(klist, vlist)
     plt.grid()
     plt.xlabel('strike $K$')
@@ -118,7 +98,7 @@ def plot_values(function):
     # C(T) plot
     plt.subplot(222)
     tlist = np.linspace(0.0001, 1, points)
-    vlist = [function(St, K, t, T, r, sigma) for T in tlist]
+    vlist = [function(St, K, T, r, sigma) for T in tlist]
     plt.plot(tlist, vlist)
     plt.grid(True)
     plt.xlabel('maturity $T$')
@@ -126,7 +106,7 @@ def plot_values(function):
     # C(r) plot
     plt.subplot(223)
     rlist = np.linspace(0, 0.1, points)
-    vlist = [function(St, K, t, T, r, sigma) for r in rlist]
+    vlist = [function(St, K, T, r, sigma) for r in rlist]
     plt.plot(tlist, vlist)
     plt.grid(True)
     plt.xlabel('short rate $r$')
@@ -136,7 +116,7 @@ def plot_values(function):
     # C(sigma) plot
     plt.subplot(224)
     slist = np.linspace(0.01, 0.5, points)
-    vlist = [function(St, K, t, T, r, sigma) for sigma in slist]
+    vlist = [function(St, K, T, r, sigma) for sigma in slist]
     plt.plot(slist, vlist)
     plt.grid(True)
     plt.xlabel('volatility $\sigma$')
